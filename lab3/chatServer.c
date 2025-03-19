@@ -8,11 +8,11 @@
 #define PORT 8080
 #define BUFFER_SIZE 1024
 
-int client_sockets[2] = {-1, -1}; // 存储两个客户端的 socket
+int client_sockets[2] = {-1, -1}; // Store two client socket
 int server_socket;
 
 void handle_sigint(int sig) {
-    printf("\n服务器正在正常关闭...\n");
+    printf("\nServer is shutting down gracefully...\n");
     close(client_sockets[0]);
     close(client_sockets[1]);
     close(server_socket);
@@ -24,85 +24,85 @@ int main() {
     socklen_t addr_size;
     char buffer[BUFFER_SIZE];
 
-    signal(SIGINT, handle_sigint); // 捕获 Ctrl+C 以正常关闭服务器
+    signal(SIGINT, handle_sigint); // Capture Ctrl+C to shut down the server properly
 
-    // 创建服务器 socket
+    // create server socket
     server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket == -1) {
-        perror("Socket 创建失败");
+        perror("Socket creation failed");
         exit(1);
     }
 
-    // 设置服务器地址
+   // Set up server address
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(PORT);
 
-    // 绑定 socket
+    // Bind socket
     if (bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        perror("绑定失败");
+        perror("Binding failed");
         exit(1);
     }
 
-    // 监听客户端连接
+    // listen for cleint connection
     if (listen(server_socket, 2) < 0) {
-        perror("监听失败");
+        perror("Listening failed");
         exit(1);
     }
 
-    printf("服务器已启动，等待客户端连接...\n");
+    printf("Server started, waiting for client connections...\n");
 
     for (int i = 0; i < 2; i++) {
         addr_size = sizeof(client_addr);
         client_sockets[i] = accept(server_socket, (struct sockaddr*)&client_addr, &addr_size);
         if (client_sockets[i] < 0) {
-            perror("接受连接失败");
+            perror("Connection acceptance failed");
             exit(1);
         }
-        printf("客户端 %d 已连接\n", i + 1);
+        printf("Client %d connected\n", i + 1);
     }
 
-    printf("两个客户端已连接，可以开始聊天。\n");
+    printf("Both clients connected, chat can begin.\n");
 
     while (1) {
     for (int i = 0; i < 2; i++) {
-        if (client_sockets[i] == -1) continue; // 如果客户端已断开，则跳过
+        if (client_sockets[i] == -1) continue; //Skip if the client is disconnected
 
         memset(buffer, 0, BUFFER_SIZE);
         int bytes_received = recv(client_sockets[i], buffer, BUFFER_SIZE, 0);
         
         if (bytes_received <= 0) {
-            printf("客户端 %d 断开连接。\n", i + 1);
+            printf("Client %d disconnected\n", i + 1);
             close(client_sockets[i]);
-            client_sockets[i] = -1; // 标记为无效
+            client_sockets[i] = -1; // Mark as invalid
             continue;
         }
 
-        printf("客户端 %d: %s\n", i + 1, buffer);
+        printf("Client %d: %s\n", i + 1, buffer);
 
-        // 如果客户端发送 "BYE"，服务器关闭
+       // If the client sends "BYE", shut down the server
         if (strncmp(buffer, "BYE", 3) == 0) {
-            printf("客户端 %d 结束聊天，服务器关闭。\n", i + 1);
+            printf("Client %d ended the chat, server shutting down.\n", i + 1);
             close(client_sockets[0]);
             close(client_sockets[1]);
             close(server_socket);
             exit(0);
         }
 
-        // 确保目标客户端仍然连接
+     // Ensure the target client is still connected
         if (client_sockets[1 - i] != -1) {
             int total_sent = 0;
             int len = strlen(buffer);
             while (total_sent < len) {
                 int sent = send(client_sockets[1 - i], buffer + total_sent, len - total_sent, 0);
                 if (sent == -1) {
-                    perror("send 失败");
+                    perror("send failed");
                     break;
                 }
                 total_sent += sent;
             }
         } else {
-            printf("消息无法转发，因为客户端 %d 已断开。\n", 2 - i);
+            printf("Message could not be forwarded as Client %d is disconnected.\n", 2 - i);
         }
     }
 }
